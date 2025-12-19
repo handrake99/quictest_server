@@ -1,0 +1,3 @@
+/Users/handrake/work/quicflow_test/build/CMakeFiles/quicflow_echo_server.dir
+/Users/handrake/work/quicflow_test/build/CMakeFiles/edit_cache.dir
+/Users/handrake/work/quicflow_test/build/CMakeFiles/rebuild_cache.dir
