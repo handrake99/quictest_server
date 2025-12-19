@@ -7,11 +7,17 @@ namespace quicflow::network {
 QuicApi::QuicApi()
 {
 #ifdef QUICFLOW_HAS_MSQUIC
-    if (MsQuicOpen2(&api_) != QUIC_STATUS_SUCCESS) {
+    QUIC_STATUS status = MsQuicOpen2(&api_);
+    if (status != QUIC_STATUS_SUCCESS) {
         // We do not throw here to keep Phase 1 sample usage minimal.
         // Instead, we leave the pointer null and let caller check.
+        std::cerr << "[QuicApi] MsQuicOpen2 failed with status: " << status << std::endl;
         api_ = nullptr;
+    } else {
+        std::cout << "[QuicApi] MsQuic API initialized successfully" << std::endl;
     }
+#else
+    std::cerr << "[QuicApi] QUICFLOW_HAS_MSQUIC is not defined at compile time" << std::endl;
 #endif
 }
 
