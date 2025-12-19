@@ -1,108 +1,129 @@
-// QuicFlow-CPP - Phase 1
-// -----------------------
-// This file intentionally focuses on *structure* rather than full QUIC logic.
-// The goal is to make the MsQuic + Boost.Asio integration points explicit,
-// while keeping the implementation small enough to reason about as a portfolio
-// starting point.
+// QuicFlow-CPP - QUIC Server Entry Point
+// ---------------------------------------
+// This file demonstrates the integration of QuicApi, QuicConfigManager, and
+// QuicServer to create a functional QUIC server that listens for client connections.
 //
 // Why this design?
-//  - We separate concerns early: QUIC API lifecycle, listener config, and
-//    event dispatch are conceptually distinct even if they live in one file
-//    for now. This makes it trivial to split into dedicated translation units
-//    when the project grows.
-//  - We avoid global state by wrapping MsQuic handles in small RAII helpers.
-//    In a long-running MMORPG chat backend, predictable teardown is just as
-//    important as peak throughput.
-//  - We do not bind ourselves to any particular threading model yet. Instead,
-//    we leave clear hooks where Boost.Asio's io_context and lock-free queues
-//    will plug in during Phase 2.
+//  - We separate concerns: API initialization, configuration, and server lifecycle
+//    are handled by dedicated classes (QuicApi, QuicConfigManager, QuicServer).
+//  - RAII ensures proper resource cleanup even in error paths.
+//  - The server can be started/stopped explicitly, making it suitable for
+//    both long-running services and test scenarios.
 
 #include <cstdlib>
+#include <csignal>
 #include <iostream>
-
-#include <boost/json.hpp>
+#include <thread>
+#include <chrono>
 
 #include "network/quic_api.hpp"
-
-// MsQuic C API - we only forward-declare function types and opaque handles
-// here via the public header. At link time, this will resolve to libmsquic
-// if it is available in the container.
-extern "C" {
-#include <msquic.h>
-}
+#include "network/quic_config_manager.hpp"
+#include "network/quic_server.hpp"
+#include "network/quic_certificate.hpp"
 
 namespace quicflow {
+namespace network {
 
-// Simple RAII wrapper for the MsQuic API table.
-// In a full implementation this would live in a dedicated header/source pair
-// and expose higher-level methods for creating listeners and connections.
-// Placeholder for future listener wrapper.
-// We intentionally keep this as a stub so that:
-//  - The build does not depend on a fully configured certificate.
-//  - The RAII pattern is visible early in the portfolio.
-class QuicListener {
-public:
-    explicit QuicListener(const network::QuicApi& /*api*/)
-    {
-        // Phase 1:
-        //  - We do not actually start listening yet.
-        //  - In Phase 2, this constructor will:
-        //      * Configure ALPN for HTTP/3/WebTransport.
-        //      * Load a self-signed certificate from the filesystem.
-        //      * Register connection/stream callbacks.
-    }
+// Global server pointer for signal handling.
+// Why: Signal handlers (SIGINT, SIGTERM) need access to the server instance
+//      to perform graceful shutdown. Using a global pointer is a simple
+//      solution for this use case.
+QuicServer* g_server = nullptr;
 
-    ~QuicListener() = default;
-};
-
-// Minimal echo handler placeholder.
-// In later phases, this will receive decoded messages (via Boost.JSON),
-// push them into a lock-free queue, and schedule asynchronous writes
-// back to the client.
-void handle_echo_placeholder()
-{
-    boost::json::object payload;
-    payload["type"]    = "echo_placeholder";
-    payload["message"] = "QuicFlow-CPP Phase 1 skeleton is running.";
-
-    const auto serialized = boost::json::serialize(payload);
-    std::cout << "[QuicFlow] " << serialized << std::endl;
+// Signal handler for graceful shutdown.
+void SignalHandler(int signal) {
+  if (g_server != nullptr) {
+    std::cout << "\n[QuicFlow] Received signal " << signal
+              << ", shutting down server..." << std::endl;
+    g_server->Stop();
+  }
 }
 
-} // namespace quicflow
+}  // namespace network
+}  // namespace quicflow
 
-int main()
-{
-    using namespace quicflow;
-    using namespace quicflow::network;
+int main() {
+  using namespace quicflow;
+  using namespace quicflow::network;
 
-    // In production, argument parsing and configuration loading would happen
-    // here (ports, certificate paths, logging backends, etc.). For Phase 1,
-    // we keep the binary deterministic and zero-config to simplify Docker use.
+  // Initialize MsQuic API.
+  QuicApi api{};
+  if (!api.is_available()) {
+    std::cerr << "[QuicFlow] MsQuic API not available at runtime. "
+              << "The container may be missing libmsquic or QUICFLOW_HAS_MSQUIC "
+              << "was not defined at compile time.\n";
+    return EXIT_FAILURE;
+  }
 
-    QuicApi api{};
-    if (!api.is_available()) {
-        std::cerr << "[QuicFlow] MsQuic API not available at runtime. "
-                  << "The container may be missing libmsquic or QUICFLOW_HAS_MSQUIC "
-                  << "was not defined at compile time.\n";
-        // We return a non-zero status so that CI/containers clearly reflect
-        // misconfiguration, instead of silently running without QUIC support.
-        return EXIT_FAILURE;
-    }
+  // Create QUIC configuration with HTTP/3 and WebTransport ALPN.
+  // Why: We support multiple ALPN protocols for backward compatibility and
+  //      future extensibility (WebTransport for real-time chat).
+  QuicConfigManager config(api, {"h3", "h3-29", "webtransport"});
+  if (!config.is_valid()) {
+    std::cerr << "[QuicFlow] Failed to create QUIC configuration: "
+              << config.error_message() << std::endl;
+    return EXIT_FAILURE;
+  }
 
-    // TODO(Phase 2):
-    //  - Wire Boost.Asio's io_context here.
-    //  - Start the MsQuic listener on a dedicated UDP port.
-    //  - Translate MsQuic callbacks into tasks enqueued onto an Asio strand.
-    QuicListener listener{api};
+  // Set up self-signed certificate for testing.
+  // Why: QUIC/TLS requires a certificate. For test environments, we use
+  //      a self-signed certificate with validation disabled.
+#ifdef QUICFLOW_HAS_MSQUIC
+  auto cred_config = CreateSelfSignedCertificate("localhost", 365);
+  if (!config.set_credential(cred_config)) {
+    std::cerr << "[QuicFlow] Failed to set certificate: "
+              << config.error_message() << std::endl;
+    return EXIT_FAILURE;
+  }
+#endif
 
-    // For now, demonstrate that the binary runs and that Boost.JSON is wired.
-    handle_echo_placeholder();
+  // Create and start the QUIC server.
+  constexpr uint16_t kServerPort = 4433;
+  QuicServer server(api, config, kServerPort);
 
-    // In a real server this process would block on an event loop. For the
-    // initial portfolio phase, exiting immediately keeps behavior simple
-    // and makes container-level failures obvious.
-    return EXIT_SUCCESS;
+  // Set up connection callback.
+  // Why: When a new connection is accepted, we want to log it and potentially
+  //      create a connection handler. In a full implementation, this callback
+  //      would create a QuicConnection wrapper and register stream callbacks.
+#ifdef QUICFLOW_HAS_MSQUIC
+  server.SetConnectionCallback([](HQUIC connection, void* /*context*/) {
+    std::cout << "[QuicFlow] New connection accepted: " << connection << std::endl;
+    // TODO: Create QuicConnection wrapper and register stream callbacks.
+    // TODO: In Phase 2, enqueue connection handling to Boost.Asio strand.
+  });
+#else
+  server.SetConnectionCallback([](void* /*connection*/, void* /*context*/) {
+    std::cout << "[QuicFlow] New connection accepted (MsQuic not available)"
+              << std::endl;
+  });
+#endif
+
+  // Register signal handlers for graceful shutdown.
+  g_server = &server;
+  std::signal(SIGINT, SignalHandler);
+  std::signal(SIGTERM, SignalHandler);
+
+  // Start the server.
+  if (!server.Start()) {
+    std::cerr << "[QuicFlow] Failed to start server: " << server.error_message()
+              << std::endl;
+    return EXIT_FAILURE;
+  }
+
+  std::cout << "[QuicFlow] Server is running on UDP port " << kServerPort
+            << std::endl;
+  std::cout << "[QuicFlow] Press Ctrl+C to stop the server" << std::endl;
+
+  // Main event loop: keep the server running until stopped.
+  // Why: MsQuic uses an event-driven model. The server will process events
+  //      in the background, but we need to keep the main thread alive.
+  //      In Phase 2, this will be replaced with Boost.Asio's io_context::run().
+  while (server.is_listening()) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+
+  std::cout << "[QuicFlow] Server stopped" << std::endl;
+  return EXIT_SUCCESS;
 }
 
 
