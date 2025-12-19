@@ -65,11 +65,19 @@ int main() {
     return EXIT_FAILURE;
   }
 
-  // Set up self-signed certificate for testing.
-  // Why: QUIC/TLS requires a certificate. For test environments, we use
-  //      a self-signed certificate with validation disabled.
+  // Load certificate from files.
+  // Why: QUIC/TLS requires a certificate. We load the certificate and key
+  //      from files in the certificate/ directory for production use.
 #ifdef QUICFLOW_HAS_MSQUIC
-  auto cred_config = CreateSelfSignedCertificate("localhost", 365);
+  const std::string cert_file = "certificate/server.crt";
+  const std::string key_file = "certificate/server.key";
+
+  auto cred_config = LoadCertificateFromFiles(cert_file, key_file);
+  if (cred_config.Type == QUIC_CREDENTIAL_TYPE_NONE) {
+    std::cerr << "[QuicFlow] Failed to load certificate from files" << std::endl;
+    return EXIT_FAILURE;
+  }
+
   if (!config.set_credential(cred_config)) {
     std::cerr << "[QuicFlow] Failed to set certificate: "
               << config.error_message() << std::endl;
@@ -120,6 +128,7 @@ int main() {
   //      In Phase 2, this will be replaced with Boost.Asio's io_context::run().
   while (server.is_listening()) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::cout <<".";
   }
 
   std::cout << "[QuicFlow] Server stopped" << std::endl;

@@ -104,14 +104,24 @@ bool QuicServer::Start() {
   // Open the listener with our callback function.
   // Why: ListenerCallback is a static method, so we pass 'this' as context
   //      to access instance members.
+  // Note: ListenerOpen requires a REGISTRATION handle, not a configuration handle.
+  HQUIC registration_handle = config_->registration();
+  std::cerr << "[DEBUG][F] Before ListenerOpen: registration_handle=" << registration_handle 
+            << ", config_valid=" << (config_->is_valid() ? "true" : "false") << std::endl;
+
   QUIC_STATUS status = api_->ListenerOpen(
-      config_->native(),  // Configuration handle
+      registration_handle,  // Registration handle (not configuration!)
       ListenerCallback,   // Static callback function
       this,               // Context (QuicServer*)
       &listener_);
 
+  std::cerr << "[DEBUG][F] After ListenerOpen: status=" << status 
+            << " (0x" << std::hex << status << std::dec << "), listener_ptr=" 
+            << (listener_ ? "non-null" : "null") << std::endl;
+
   if (status != QUIC_STATUS_SUCCESS) {
     error_message_ = "Failed to open listener: status " + std::to_string(status);
+    std::cerr << "[ERROR] ListenerOpen failed with status " << status << std::endl;
     return false;
   }
 
@@ -123,9 +133,23 @@ bool QuicServer::Start() {
   QuicAddrSetPort(&address, port_);
 
   // ListenerStart signature: (HQUIC, const QUIC_BUFFER*, uint32_t, const QUIC_ADDR*)
-  // Why: We pass nullptr for ALPN buffers to use the configuration's ALPN.
-  //      AlpnBufferCount must be 0 when AlpnBuffers is nullptr.
-  status = api_->ListenerStart(listener_, nullptr, 0, &address);
+  // Why: ListenerStart requires ALPN buffers to be explicitly passed.
+  //      We cannot pass nullptr with count 0 - we must pass the actual ALPN buffers.
+  std::cerr << "[DEBUG][F] Before ListenerStart: listener=" << listener_ 
+            << ", port=" << port_ << std::endl;
+  
+  // Get ALPN buffers from configuration
+  // Note: We need to reconstruct ALPN buffers or get them from config.
+  // For now, let's try with a single ALPN buffer for "h3"
+  static uint8_t alpn_data[] = {'h', '3'};  // Static storage for ALPN string
+  QUIC_BUFFER alpn_buffer{};
+  alpn_buffer.Length = sizeof(alpn_data);
+  alpn_buffer.Buffer = alpn_data;
+  
+  status = api_->ListenerStart(listener_, &alpn_buffer, 1, &address);
+  
+  std::cerr << "[DEBUG][F] After ListenerStart: status=" << status 
+            << " (0x" << std::hex << status << std::dec << ")" << std::endl;
 
   if (status != QUIC_STATUS_SUCCESS) {
     error_message_ = "Failed to start listener on port " + std::to_string(port_) +

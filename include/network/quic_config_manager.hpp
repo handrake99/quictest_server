@@ -87,8 +87,12 @@ class QuicConfigManager {
   //     is_valid() check is performed).
 #ifdef QUICFLOW_HAS_MSQUIC
   HQUIC native() const noexcept;
+  // Returns the registration handle used by this configuration.
+  // Why: ListenerOpen requires a registration handle, not a configuration handle.
+  HQUIC registration() const noexcept;
 #else
   const void* native() const noexcept;
+  const void* registration() const noexcept;
 #endif
 
   // Returns a human-readable error message if initialization failed.
@@ -133,6 +137,7 @@ class QuicConfigManager {
 
 #ifdef QUICFLOW_HAS_MSQUIC
   const QUIC_API_TABLE* api_;
+  HQUIC registration_;  // QUIC_REGISTRATION is an alias for HQUIC
   HQUIC configuration_;  // QUIC_CONFIGURATION is an alias for HQUIC
   std::vector<QUIC_BUFFER> alpn_buffers_;
   std::vector<std::vector<uint8_t>> alpn_storage_;  // Owns ALPN string data

@@ -19,8 +19,8 @@ FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
+RUN sed -i 's/archive.ubuntu.com/mirror.kakao.com/g' /etc/apt/sources.list && \
+    apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
         tzdata \
         git \
@@ -31,21 +31,32 @@ RUN apt-get update && \
         cmake \
         pkg-config \
         gdb \
-        # Compilers: keep both GCC and Clang, default to Clang inside CMake.
         clang \
         clang-tools \
         gcc \
         g++ \
-        # Boost (Ubuntu 22.04 ships 1.74; requirement is 1.81+ but we start here)
         libboost-all-dev \
-        # MsQuic related packages (if available in distro; may be minimal)
-        libmsquic \
-        # Misc tools useful during early development
+        libssl-dev \
+        libnuma-dev \
         net-tools \
         iproute2 \
         iputils-ping \
         vim \
     && rm -rf /var/lib/apt/lists/*
+
+# 2. MsQuic 빌드 및 설치 (가장 확실한 방법)
+# Mac ARM64 호환성을 위해 소스에서 직접 빌드합니다.
+WORKDIR /tmp
+RUN git clone --recursive https://github.com/microsoft/msquic.git \
+    && cd msquic \
+    && mkdir build && cd build \
+    && cmake -DQUIC_TLS=openssl -DQUIC_BUILD_TEST=OFF .. \
+    && make -j$(nproc) \
+    && make install \
+    # 라이브러리 링크 갱신
+    && ldconfig \
+    # 임시 파일 삭제
+    && cd /tmp && rm -rf msquic
 
 # Optional: hooks for building MsQuic from source (Phase 2+)
 # We intentionally keep this commented out to avoid slowing down Phase 1 builds.

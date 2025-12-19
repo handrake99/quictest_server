@@ -37,6 +37,16 @@ QuicConfigManager::QuicConfigManager(const QuicApi& api,
   //      std::string for type safety and convenience in C++ code.
   InitializeAlpnBuffers(alpn_protocols);
 
+  QUIC_REGISTRATION_CONFIG RegConfig = { "quicflow App", QUIC_EXECUTION_PROFILE_LOW_LATENCY };
+
+  // 1. Registration을 먼저 엽니다.
+  QUIC_STATUS Status = api_->RegistrationOpen(&RegConfig, &registration_);
+
+  if (QUIC_FAILED(Status)) {
+    // Registration 생성 실패 시 처리
+    return;
+  }
+
   // Create QUIC configuration with default settings.
   // Why: We use QUIC_SETTINGS defaults initially. Advanced tuning
   //      (e.g., connection migration, idle timeout) can be added later
@@ -52,7 +62,7 @@ QuicConfigManager::QuicConfigManager(const QuicApi& api,
   // In a full implementation, we would create a QUIC_REGISTRATION
   // handle via MsQuic->RegistrationOpen() and manage it separately.
   QUIC_STATUS status = api_->ConfigurationOpen(
-      nullptr,  // Use default registration (nullptr means use global)
+      registration_,  // Use default registration (nullptr means use global)
       &alpn_buffers_[0],
       static_cast<uint32_t>(alpn_buffers_.size()),
       &settings,
@@ -128,8 +138,16 @@ QuicConfigManager::~QuicConfigManager() { Cleanup(); }
 HQUIC QuicConfigManager::native() const noexcept {
   return is_valid_ ? configuration_ : nullptr;
 }
+
+HQUIC QuicConfigManager::registration() const noexcept {
+  return is_valid_ ? registration_ : nullptr;
+}
 #else
 const void* QuicConfigManager::native() const noexcept {
+  return nullptr;
+}
+
+const void* QuicConfigManager::registration() const noexcept {
   return nullptr;
 }
 #endif
