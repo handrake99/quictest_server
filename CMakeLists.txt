@@ -102,6 +102,9 @@ endif()
 add_executable(quicflow_echo_server
     src/main.cpp
     src/network/quic_api.cpp
+    src/network/quic_config_manager.cpp
+    src/network/quic_server.cpp
+    src/network/quic_certificate.cpp
 )
 
 target_include_directories(quicflow_echo_server
