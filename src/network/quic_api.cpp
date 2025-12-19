@@ -25,7 +25,7 @@ QuicApi::~QuicApi()
 {
 #ifdef QUICFLOW_HAS_MSQUIC
     if (api_ != nullptr) {
-        MsQuicClose(api_);
+        //MsQuicClose(api_);
         api_ = nullptr;
     }
 #endif

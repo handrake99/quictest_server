@@ -32,7 +32,7 @@ private:
 #ifdef QUICFLOW_HAS_MSQUIC
     const QUIC_API_TABLE* api_{nullptr};
 #else
-    const void* api_{nullptr};
+    void* api_{nullptr};
 #endif
 };
 

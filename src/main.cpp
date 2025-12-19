@@ -46,48 +46,24 @@ int main() {
   using namespace quicflow;
   using namespace quicflow::network;
 
-  // Initialize MsQuic API.
-  QuicApi api{};
-  if (!api.is_available()) {
-    std::cerr << "[QuicFlow] MsQuic API not available at runtime. "
-              << "The container may be missing libmsquic or QUICFLOW_HAS_MSQUIC "
-              << "was not defined at compile time.\n";
-    return EXIT_FAILURE;
-  }
-
   // Create QUIC configuration with HTTP/3 and WebTransport ALPN.
   // Why: We support multiple ALPN protocols for backward compatibility and
   //      future extensibility (WebTransport for real-time chat).
-  QuicConfigManager config(api, {"h3", "h3-29", "webtransport"});
-  if (!config.is_valid()) {
-    std::cerr << "[QuicFlow] Failed to create QUIC configuration: "
-              << config.error_message() << std::endl;
+  //QuicConfigManager config(api, {"h3", "h3-29", "webtransport"});
+  std::shared_ptr<QuicConfigManager> config(new QuicConfigManager());
+
+  if (config->InitializeConfig() == false) {
+    std::cerr << "[QuicFlow] Failed to initialize QUIC configuration: "
+              << config->error_message() << std::endl;
     return EXIT_FAILURE;
+
   }
 
-  // Load certificate from files.
-  // Why: QUIC/TLS requires a certificate. We load the certificate and key
-  //      from files in the certificate/ directory for production use.
-#ifdef QUICFLOW_HAS_MSQUIC
-  const std::string cert_file = "certificate/server.crt";
-  const std::string key_file = "certificate/server.key";
-
-  auto cred_config = LoadCertificateFromFiles(cert_file, key_file);
-  if (cred_config.Type == QUIC_CREDENTIAL_TYPE_NONE) {
-    std::cerr << "[QuicFlow] Failed to load certificate from files" << std::endl;
-    return EXIT_FAILURE;
-  }
-
-  if (!config.set_credential(cred_config)) {
-    std::cerr << "[QuicFlow] Failed to set certificate: "
-              << config.error_message() << std::endl;
-    return EXIT_FAILURE;
-  }
-#endif
 
   // Create and start the QUIC server.
   constexpr uint16_t kServerPort = 4433;
-  QuicServer server(api, config, kServerPort);
+  QuicServer& server = QuicServer::GetInstance();
+  server.InitQuicServer(config->api(), config, kServerPort);
 
   // Set up connection callback.
   // Why: When a new connection is accepted, we want to log it and potentially

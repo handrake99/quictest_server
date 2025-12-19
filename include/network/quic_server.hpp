@@ -24,6 +24,8 @@ extern "C" {
 }
 #endif
 
+#include "common/singleton.hpp"
+
 namespace quicflow {
 namespace network {
 
@@ -56,9 +58,13 @@ using ConnectionCallback = std::function<void(void* connection, void* context)>;
 //   if (server.Start()) {
 //     // Server is listening
 //   }
-class QuicServer {
- public:
-  // Constructs a QUIC server with the given configuration.
+class QuicServer : public Common::Singleton<QuicServer> {
+
+public:
+  // Singleton이 생성자를 호출할 수 있게 친구 선언
+  friend class Singleton<QuicServer>;
+
+  // Initialize a QUIC server with the given configuration.
   // Why: 서버는 QuicApi와 QuicConfigManager에 의존하므로, 생성자에서
   //      이를 받아서 저장합니다. 포트 번호도 생성 시점에 지정하여
   //      명확한 설정을 보장합니다.
@@ -71,10 +77,13 @@ class QuicServer {
   // Preconditions:
   //   - api.is_available() must return true.
   //   - config.is_valid() must return true.
-  explicit QuicServer(const QuicApi& api,
-                       const QuicConfigManager& config,
+
+  void InitQuicServer(const QUIC_API_TABLE* api,
+                       std::shared_ptr<QuicConfigManager> config,
                        uint16_t port = 4433);
 
+  // Constructor for Singleton
+  QuicServer();
   // Non-copyable: listener handles are unique resources.
   QuicServer(const QuicServer&) = delete;
   QuicServer& operator=(const QuicServer&) = delete;
@@ -151,7 +160,7 @@ class QuicServer {
 
 #ifdef QUICFLOW_HAS_MSQUIC
   const QUIC_API_TABLE* api_;
-  const QuicConfigManager* config_;
+  std::shared_ptr<QuicConfigManager> config_;
   HQUIC listener_;
 #else
   const void* api_;

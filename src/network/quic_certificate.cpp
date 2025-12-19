@@ -40,9 +40,10 @@ QUIC_CREDENTIAL_CONFIG CreateSelfSignedCertificate(
   return cred_config;
 }
 
-QUIC_CREDENTIAL_CONFIG LoadCertificateFromFiles(
-    const std::string& cert_file, const std::string& key_file) {
+QUIC_CREDENTIAL_CONFIG LoadCertificateFromFiles(const std::string& cert_file,
+                                                const std::string& key_file) {
   QUIC_CREDENTIAL_CONFIG cred_config{};
+  memset(&cred_config, 0, sizeof(QUIC_CREDENTIAL_CONFIG));
 
   // Verify that certificate and key files exist.
   // Why: File existence check provides early error detection and clear
@@ -94,7 +95,8 @@ QUIC_CREDENTIAL_CONFIG LoadCertificateFromFiles(
   cred_config.CertificateFile = &cert_file_struct;
 
   std::cout << "[QuicCertificate] Loaded certificate from files:" << std::endl;
-  std::cout << "[QuicCertificate]   Certificate: " << abs_cert_file << std::endl;
+  std::cout << "[QuicCertificate]   Certificate: " << abs_cert_file
+            << std::endl;
   std::cout << "[QuicCertificate]   Private Key: " << abs_key_file << std::endl;
 
   return cred_config;
@@ -113,4 +115,3 @@ void* LoadCertificateFromFiles(const std::string& /*cert_file*/,
 
 }  // namespace network
 }  // namespace quicflow
-

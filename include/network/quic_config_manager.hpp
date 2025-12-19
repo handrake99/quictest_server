@@ -54,8 +54,7 @@ class QuicConfigManager {
   //   - If construction succeeds, is_valid() returns true.
   //   - If construction fails, is_valid() returns false and error details
   //     can be retrieved via error_message().
-  explicit QuicConfigManager(const QuicApi& api,
-                             const std::vector<std::string>& alpn_protocols);
+  explicit QuicConfigManager();
 
   // Non-copyable: configuration handles are unique resources.
   QuicConfigManager(const QuicConfigManager&) = delete;
@@ -86,13 +85,19 @@ class QuicConfigManager {
   //   - nullptr if configuration is invalid (should not happen if
   //     is_valid() check is performed).
 #ifdef QUICFLOW_HAS_MSQUIC
-  HQUIC native() const noexcept;
+  HQUIC configuration() const noexcept;
   // Returns the registration handle used by this configuration.
   // Why: ListenerOpen requires a registration handle, not a configuration handle.
   HQUIC registration() const noexcept;
+  const QUIC_API_TABLE* api() const noexcept;
+  // Returns the ALPN buffers used by this configuration.
+  // Why: ListenerStart requires the same ALPN buffers as ConfigurationOpen.
+  const std::vector<QUIC_BUFFER>& alpn_buffers() const noexcept;
 #else
-  const void* native() const noexcept;
+  const void* configuration() const noexcept;
   const void* registration() const noexcept;
+  const void * api() const noexcept;
+  const std::vector<void*>& alpn_buffers() const noexcept;
 #endif
 
   // Returns a human-readable error message if initialization failed.
@@ -100,6 +105,8 @@ class QuicConfigManager {
   //      configuration creation failed (e.g., invalid ALPN, missing
   //      certificate, etc.).
   const std::string& error_message() const noexcept { return error_message_; }
+
+  bool InitializeConfig();
 
   // Sets the credential configuration for TLS/QUIC handshake.
   // Why: QUIC requires TLS 1.3, which needs certificate configuration.
@@ -137,8 +144,8 @@ class QuicConfigManager {
 
 #ifdef QUICFLOW_HAS_MSQUIC
   const QUIC_API_TABLE* api_;
-  HQUIC registration_;  // QUIC_REGISTRATION is an alias for HQUIC
-  HQUIC configuration_;  // QUIC_CONFIGURATION is an alias for HQUIC
+  HQUIC handle_registration_;  // QUIC_REGISTRATION is an alias for HQUIC
+  HQUIC handle_config_;  // QUIC_CONFIGURATION is an alias for HQUIC
   std::vector<QUIC_BUFFER> alpn_buffers_;
   std::vector<std::vector<uint8_t>> alpn_storage_;  // Owns ALPN string data
 #else
