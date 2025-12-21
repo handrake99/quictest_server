@@ -78,9 +78,7 @@ public:
   //   - api.is_available() must return true.
   //   - config.is_valid() must return true.
 
-  void InitQuicServer(const QUIC_API_TABLE* api,
-                       std::shared_ptr<QuicConfigManager> config,
-                       uint16_t port = 4433);
+  QUIC_STATUS InitQuicServer(uint16_t port = 4433);
 
   // Constructor for Singleton
   QuicServer();
@@ -115,7 +113,7 @@ public:
   // Returns the port number this server is configured to listen on.
   uint16_t port() const noexcept { return port_; }
 
-  const QUIC_API_TABLE* api() { return api_;}
+  const QUIC_API_TABLE* api() ;
   const std::shared_ptr<QuicConfigManager> config() { return config_;}
 
   // Connection이 들어왔을때 불리는 callback
@@ -156,15 +154,8 @@ public:
   // Helper to clean up listener resources.
   void Cleanup() noexcept;
 
-#ifdef QUICFLOW_HAS_MSQUIC
-  const QUIC_API_TABLE* api_;
   std::shared_ptr<QuicConfigManager> config_;
   HQUIC listener_;
-#else
-  const void* api_;
-  const void* config_;
-  void* listener_;
-#endif
 
   uint16_t port_;
   bool is_listening_;

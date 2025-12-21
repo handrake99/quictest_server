@@ -20,20 +20,11 @@ public:
     QuicApi& operator=(const QuicApi&) = delete;
     ~QuicApi();
 
-#ifdef QUICFLOW_HAS_MSQUIC
     const QUIC_API_TABLE* native() const noexcept { return api_; }
-#else
-    const void* native() const noexcept { return nullptr; }
-#endif
-
     bool is_available() const noexcept;
 
 private:
-#ifdef QUICFLOW_HAS_MSQUIC
     const QUIC_API_TABLE* api_{nullptr};
-#else
-    void* api_{nullptr};
-#endif
 };
 
 } // namespace quicflow::network
