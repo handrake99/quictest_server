@@ -111,17 +111,15 @@ public:
   // Returns true if the server is currently listening.
   bool is_listening() const noexcept { return is_listening_; }
 
+
   // Returns the port number this server is configured to listen on.
   uint16_t port() const noexcept { return port_; }
 
-  // Sets a callback function to be invoked when a new connection is accepted.
-  // Why: std::function을 사용하여 람다, 멤버 함수, 함수 포인터 등
-  //      다양한 콜백 타입을 지원합니다.
-  //
-  // Args:
-  //   callback: Function to call when a new connection is accepted.
-  //             The connection handle (HQUIC) and context pointer are passed.
-  void SetConnectionCallback(ConnectionCallback callback);
+  const QUIC_API_TABLE* api() { return api_;}
+  const std::shared_ptr<QuicConfigManager> config() { return config_;}
+
+  // Connection이 들어왔을때 불리는 callback
+  static void OnConnectionCallback(QuicServer* , HQUIC ) ;
 
   // Returns a human-readable error message if Start() failed.
   const std::string& error_message() const noexcept { return error_message_; }
@@ -171,7 +169,6 @@ public:
   uint16_t port_;
   bool is_listening_;
   std::string error_message_;
-  ConnectionCallback connection_callback_;
 };
 
 }  // namespace network

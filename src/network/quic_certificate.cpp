@@ -94,7 +94,7 @@ QUIC_CREDENTIAL_CONFIG LoadCertificateFromFiles(const std::string& cert_file,
 
   cred_config.CertificateFile = &cert_file_struct;
 
-  std::cout << "[QuicCertificate] Loaded certificate from files:" << std::endl;
+
   std::cout << "[QuicCertificate]   Certificate: " << abs_cert_file
             << std::endl;
   std::cout << "[QuicCertificate]   Private Key: " << abs_key_file << std::endl;

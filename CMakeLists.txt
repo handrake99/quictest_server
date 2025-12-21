@@ -95,6 +95,14 @@ else()
     message(WARNING "To install MsQuic on macOS, run: ./scripts/install_msquic.sh")
 endif()
 
+# 1. OpenSSL 경로 강제 (Homebrew)
+set(OPENSSL_ROOT_DIR "/opt/homebrew/opt/openssl@3")
+set(OPENSSL_USE_STATIC_LIBS ON) # <--- ★ 중요: 우리도 정적으로 붙이자!
+
+find_package(OpenSSL REQUIRED)
+find_package(nlohmann_json 3.2.0 REQUIRED)
+
+
 # -------------------------
 # Targets
 # -------------------------
@@ -105,6 +113,11 @@ add_executable(quicflow_echo_server
     src/network/quic_config_manager.cpp
     src/network/quic_server.cpp
     src/network/quic_certificate.cpp
+        include/common/singleton.hpp
+        include/network/quic_connection.hpp
+        src/network/quic_connection.cpp
+        include/manager/connection_manager.hpp
+        src/manager/connection_manager.cpp
 )
 
 target_include_directories(quicflow_echo_server
@@ -112,6 +125,13 @@ target_include_directories(quicflow_echo_server
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${Boost_INCLUDE_DIRS}
 )
+
+# Add nlohmann_json include directory if found
+if(TARGET nlohmann_json::nlohmann_json)
+    # nlohmann_json is header-only, but we still need to link the target
+    # to ensure proper include paths are set
+    message(STATUS "nlohmann_json target found, will be linked")
+endif()
 
 # Add MsQuic include directory if found
 if(MSQUIC_INCLUDE_DIR)
@@ -124,6 +144,7 @@ endif()
 target_link_libraries(quicflow_echo_server
     PRIVATE
         Boost::json
+        nlohmann_json::nlohmann_json
 )
 
 if(MSQUIC_LIBRARY AND MSQUIC_INCLUDE_DIR)

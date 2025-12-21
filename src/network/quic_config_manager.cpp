@@ -12,26 +12,18 @@ namespace quicflow {
 namespace network {
 
 QuicConfigManager::QuicConfigManager()
-    : api_(nullptr),
-      handle_config_(nullptr),
+    : handle_config_(nullptr),
       is_valid_(false)
 {
 }
 
 QuicConfigManager::QuicConfigManager(QuicConfigManager&& other) noexcept
-#ifdef QUICFLOW_HAS_MSQUIC
     : api_(other.api_),
       handle_config_(other.handle_config_),
       alpn_buffers_(std::move(other.alpn_buffers_)),
       alpn_storage_(std::move(other.alpn_storage_)),
       is_valid_(other.is_valid_),
       error_message_(std::move(other.error_message_))
-#else
-    : api_(other.api_),
-      handle_config_(other.handle_config_),
-      is_valid_(other.is_valid_),
-      error_message_(std::move(other.error_message_))
-#endif
 {
   // Reset source object to prevent double cleanup.
   other.api_ = nullptr;
@@ -45,15 +37,10 @@ QuicConfigManager& QuicConfigManager::operator=(
   if (this != &other) {
     Cleanup();
 
-#ifdef QUICFLOW_HAS_MSQUIC
     api_ = other.api_;
     handle_config_ = other.handle_config_;
     alpn_buffers_ = std::move(other.alpn_buffers_);
     alpn_storage_ = std::move(other.alpn_storage_);
-#else
-    api_ = other.api_;
-    handle_config_ = other.handle_config_;
-#endif
 
     is_valid_ = other.is_valid_;
     error_message_ = std::move(other.error_message_);
@@ -69,7 +56,6 @@ QuicConfigManager& QuicConfigManager::operator=(
 
 QuicConfigManager::~QuicConfigManager() { Cleanup(); }
 
-#ifdef QUICFLOW_HAS_MSQUIC
 HQUIC QuicConfigManager::configuration() const noexcept {
   return is_valid_ ? handle_config_ : nullptr;
 }
@@ -85,37 +71,22 @@ const QUIC_API_TABLE* QuicConfigManager::api() const noexcept {
 const std::vector<QUIC_BUFFER>& QuicConfigManager::alpn_buffers() const noexcept {
   return alpn_buffers_;
 }
-#else
-const void* QuicConfigManager::native() const noexcept {
-  return nullptr;
-}
 
-const void* QuicConfigManager::registration() const noexcept {
-  return nullptr;
-}
-
-const std::vector<void*>& QuicConfigManager::alpn_buffers() const noexcept {
-  static std::vector<void*> empty;
-  return empty;
-}
-#endif
-
-
-#ifdef QUICFLOW_HAS_MSQUIC
 bool QuicConfigManager::InitializeConfig() {
   // Initialize MsQuic API.
-  QuicApi api{};
-  if (!api.is_available()) {
-    std::cerr << "[QuicFlow] MsQuic API not available at runtime. "
-              << "The container may be missing libmsquic or QUICFLOW_HAS_MSQUIC "
-              << "was not defined at compile time.\n";
-    return false;
+  QUIC_STATUS status = MsQuicOpen2(&api_);
+  if (status != QUIC_STATUS_SUCCESS) {
+    // We do not throw here to keep Phase 1 sample usage minimal.
+    // Instead, we leave the pointer null and let caller check.
+    std::cerr << "[QuicApi] MsQuicOpen2 failed with status: " << status << std::endl;
+    api_ = nullptr;
+  } else {
+    std::cout << "[QuicApi] MsQuic API initialized successfully" << std::endl;
   }
- //std::shared_ptr<QuicConfigManager> config(new QuicConfigManager(api, {"h3", "h3-29", "webtransport"}));
-  api_ = api.native();
+
   handle_config_ = nullptr;
   is_valid_ = false;
-  std::vector<std::string> alpn_protocols = {"h3", "h3-29", "webtransport"};
+  std::vector<std::string> alpn_protocols = {"h3", "webtransport"};
   if (alpn_protocols.empty()) {
     error_message_ = "ALPN protocols list cannot be empty";
     return false;
@@ -126,7 +97,7 @@ bool QuicConfigManager::InitializeConfig() {
   //      std::string for type safety and convenience in C++ code.
   InitializeAlpnBuffers(alpn_protocols);
 
-  QUIC_REGISTRATION_CONFIG RegConfig = { "quicflow App", QUIC_EXECUTION_PROFILE_LOW_LATENCY };
+  QUIC_REGISTRATION_CONFIG RegConfig = { "QuicServer App", QUIC_EXECUTION_PROFILE_LOW_LATENCY };
 
   // 1. Registration을 먼저 엽니다.
   QUIC_STATUS Status = api_->RegistrationOpen(&RegConfig, &handle_registration_);
@@ -146,11 +117,12 @@ bool QuicConfigManager::InitializeConfig() {
   settings.PeerBidiStreamCount = 100;  // Allow bidirectional streams
   settings.IsSet.PeerBidiStreamCount = TRUE;
 
+  // 2. configuration open
   // Note: ConfigurationOpen requires a registration handle.
   // For now, we pass nullptr to use the default registration.
   // In a full implementation, we would create a QUIC_REGISTRATION
   // handle via MsQuic->RegistrationOpen() and manage it separately.
-  QUIC_STATUS status = api_->ConfigurationOpen(
+  status = api_->ConfigurationOpen(
       handle_registration_,  // Use default registration (nullptr means use global)
       &alpn_buffers_[0],
       static_cast<uint32_t>(alpn_buffers_.size()),
@@ -170,7 +142,6 @@ bool QuicConfigManager::InitializeConfig() {
   // Load certificate from files.
   // Why: QUIC/TLS requires a certificate. We load the certificate and key
   //      from files in the certificate/ directory for production use.
-#ifdef QUICFLOW_HAS_MSQUIC
   const std::string cert_file = "certificate/server.crt";
   const std::string key_file = "certificate/server.key";
 
@@ -185,17 +156,12 @@ bool QuicConfigManager::InitializeConfig() {
               << error_message() << std::endl;
     return false;
   }
-#endif
+
   is_valid_ = true;
 
   return true;
-#else
-  error_message_ = "QUICFLOW_HAS_MSQUIC is not defined at compile time";
-  return true;
-#endif
 }
 
-#ifdef QUICFLOW_HAS_MSQUIC
 bool QuicConfigManager::set_credential(const QUIC_CREDENTIAL_CONFIG& credential_config) {
   if (api_ == nullptr || handle_config_ == nullptr) {
     error_message_ = "Configuration is not valid";
@@ -212,11 +178,8 @@ bool QuicConfigManager::set_credential(const QUIC_CREDENTIAL_CONFIG& credential_
 
   return true;
 }
-#endif
 
-void QuicConfigManager::InitializeAlpnBuffers(
-    const std::vector<std::string>& alpn_protocols) {
-#ifdef QUICFLOW_HAS_MSQUIC
+void QuicConfigManager::InitializeAlpnBuffers(const std::vector<std::string>& alpn_protocols) {
   alpn_buffers_.clear();
   alpn_storage_.clear();
   alpn_buffers_.reserve(alpn_protocols.size());
@@ -236,7 +199,6 @@ void QuicConfigManager::InitializeAlpnBuffers(
 
     alpn_buffers_.push_back(buffer);
   }
-#endif
 }
 
 void QuicConfigManager::Cleanup() noexcept {
