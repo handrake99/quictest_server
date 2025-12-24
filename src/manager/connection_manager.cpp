@@ -18,13 +18,13 @@ ConnectionManager::ConnectionManager() {
 }
 
 void ConnectionManager::OnNewConnection(std::shared_ptr<QuicConnection> connection) {
-  std::clog << "[DEBUG][F] OnNewConnection Called (" << connection->connection()<< ")";
+  std::clog << "[DEBUG][F] OnNewConnection Called (" << connection->connection()<< ")" << std::endl;
   auto key = connection->connection();
 
   if (connection_map_.contains(key) == true) {
     // 기존의 존재하는경우 새로운 걸로 교체하고 기존꺼는 버린다.
     auto oldConnection = connection_map_.at(key) ;
-    std::cerr << "[DEBUG][F] Already existed connection(" << connection->connection()<< ")";
+    std::cerr << "[DEBUG][F] Already existed connection(" << connection->connection()<< ")" << std::endl;
     connection_map_.erase(key);
   }
   connection_map_.insert(std::make_pair(key, connection));

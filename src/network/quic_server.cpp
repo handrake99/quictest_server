@@ -108,7 +108,7 @@ bool QuicServer::Start() {
 
   QUIC_STATUS status = api->ListenerOpen(
       registration,  // Registration handle
-      ListenerCallback,   // Static callback function
+      ServerListenerCallback,   // Static callback function
       this,               // Context (QuicServer*)
       &listener_);
 
@@ -156,7 +156,7 @@ void QuicServer::Stop() noexcept {
   Cleanup();
   std::cout << "[QuicServer] Stopped listening on port " << port_ << std::endl;
 }
-QUIC_STATUS QUIC_API QuicServer::ListenerCallback(HQUIC listener,
+QUIC_STATUS QUIC_API QuicServer::ServerListenerCallback(HQUIC listener,
                                                   void* context,
                                                   QUIC_LISTENER_EVENT* event) {
   // Cast context back to QuicServer instance.
@@ -167,23 +167,27 @@ QUIC_STATUS QUIC_API QuicServer::ListenerCallback(HQUIC listener,
     return QUIC_STATUS_INVALID_PARAMETER;
   }
 
-  return server->HandleListenerEvent(event);
-}
+  auto config = server->config();
+  if (config == nullptr) {
+    return QUIC_STATUS_INVALID_PARAMETER;
+  }
 
-QUIC_STATUS QuicServer::HandleListenerEvent(QUIC_LISTENER_EVENT* event) {
-  auto api = config_->api();
+  std::cout << "ServerListenerCallback called (" << event->Type << ")" <<std::endl;
+
+  auto api = config->api();
   switch (event->Type) {
     case QUIC_LISTENER_EVENT_NEW_CONNECTION: {
       // A new connection is attempting to connect.
       // Why: We accept the connection and assign our configuration to it.
       //      The connection handle is then passed to the user callback.
-      HQUIC connection = event->NEW_CONNECTION.Connection;
+      HQUIC hConnection= event->NEW_CONNECTION.Connection;
+
+      std::cout << "QUIC_LISTENER_EVENT_NEW_CONNECTION called" << std::endl;
 
       // Accept the connection with our configuration.
-      QUIC_STATUS status = api->ConnectionSetConfiguration(
-          connection, config_->configuration());
+      QUIC_STATUS status = api->ConnectionSetConfiguration(hConnection, config->configuration());
 
-      if (status != QUIC_STATUS_SUCCESS) {
+      if (QUIC_FAILED(status)) {
         std::cerr << "[QuicServer] Failed to set connection configuration: "
                   << status << std::endl;
         return status;
@@ -193,7 +197,16 @@ QUIC_STATUS QuicServer::HandleListenerEvent(QUIC_LISTENER_EVENT* event) {
       // Why: User callback allows application code to handle the new connection
       //      (e.g., create a QuicConnection wrapper, register stream callbacks, etc.).
       try {
-        OnConnectionCallback(this, connection);
+        auto newConnection = std::make_shared<QuicConnection>(hConnection);
+
+        auto status = newConnection->InitConnection(server->api(), server->config());
+        if (QUIC_FAILED(status)) {
+          std::cerr << "[QuicServer] Failed to init connection: " << status << std::endl;
+          return QUIC_STATUS_INTERNAL_ERROR;
+        }
+
+        manager::ConnectionManager::GetInstance().OnNewConnection(newConnection);
+
       } catch (const std::exception& e) {
         std::cerr << "[QuicServer] Exception in connection callback: " << e.what()
                   << std::endl;
@@ -212,18 +225,6 @@ QUIC_STATUS QuicServer::HandleListenerEvent(QUIC_LISTENER_EVENT* event) {
       // Ignore other event types for now.
       return QUIC_STATUS_SUCCESS;
   }
-}
-
-void QuicServer::OnConnectionCallback(QuicServer* server, HQUIC quicConnection) {
-  auto newConnection = std::make_shared<QuicConnection>(quicConnection);
-
-  auto status = newConnection->InitConnection(server->api(), server->config());
-  if (QUIC_FAILED(status)) {
-    std::cerr << "[QuicServer] Failed to init connection: " << status << std::endl;
-    return;
-  }
-
-  manager::ConnectionManager::GetInstance().OnNewConnection(newConnection);
 }
 
 void QuicServer::Cleanup() noexcept {

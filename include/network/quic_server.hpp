@@ -109,15 +109,11 @@ public:
   // Returns true if the server is currently listening.
   bool is_listening() const noexcept { return is_listening_; }
 
-
   // Returns the port number this server is configured to listen on.
   uint16_t port() const noexcept { return port_; }
 
   const QUIC_API_TABLE* api() ;
   const std::shared_ptr<QuicConfigManager> config() { return config_;}
-
-  // Connection이 들어왔을때 불리는 callback
-  static void OnConnectionCallback(QuicServer* , HQUIC ) ;
 
   // Returns a human-readable error message if Start() failed.
   const std::string& error_message() const noexcept { return error_message_; }
@@ -134,22 +130,9 @@ public:
   //
   // Returns:
   //   QUIC_STATUS_SUCCESS if event was handled successfully.
-#ifdef QUICFLOW_HAS_MSQUIC
-  static QUIC_STATUS QUIC_API ListenerCallback(HQUIC listener,
+  static QUIC_STATUS QUIC_API ServerListenerCallback(HQUIC listener,
                                                void* context,
                                                QUIC_LISTENER_EVENT* event);
-#else
-  static int ListenerCallback(void* listener, void* context, void* event);
-#endif
-
-  // Instance method that handles listener events.
-  // Why: Static callback에서 인스턴스 메서드로 위임하여 멤버 변수에
-  //      접근할 수 있게 합니다.
-#ifdef QUICFLOW_HAS_MSQUIC
-  QUIC_STATUS HandleListenerEvent(QUIC_LISTENER_EVENT* event);
-#else
-  int HandleListenerEvent(void* event);
-#endif
 
   // Helper to clean up listener resources.
   void Cleanup() noexcept;

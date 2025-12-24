@@ -174,7 +174,7 @@ bool QuicConfigManager::set_credential(const QUIC_CREDENTIAL_CONFIG& credential_
     error_message_ = "Failed to load credential: status " + std::to_string(status);
     return false;
   }
-  std::cerr << "[DEBUG]" << R"({"config_handler":")" << handle_config_  << R"("})";
+  std::cerr << "[DEBUG]" << R"({"config_handler":")" << handle_config_  << R"("})" << std::endl;
 
   return true;
 }
