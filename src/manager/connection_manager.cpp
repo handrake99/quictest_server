@@ -18,7 +18,7 @@ ConnectionManager::ConnectionManager() {
 }
 
 void ConnectionManager::OnNewConnection(std::shared_ptr<QuicConnection> connection) {
-  std::clog << "[DEBUG][F] OnNewConnection Called (" << connection->connection()<< ")" << std::endl;
+  std::clog << "[DEBUG][F] OnNewConnection Called (" << connection->connection() << ")" << std::endl;
   auto key = connection->connection();
 
   if (connection_map_.contains(key) == true) {
@@ -28,6 +28,18 @@ void ConnectionManager::OnNewConnection(std::shared_ptr<QuicConnection> connecti
     connection_map_.erase(key);
   }
   connection_map_.insert(std::make_pair(key, connection));
+}
+
+void ConnectionManager::OnCloseConnection(std::shared_ptr<QuicConnection> connection) {
+  std::clog << "[DEBUG][F] OnCloseConnection Called (" << connection->connection()<< ")" << std::endl;
+  auto key = connection->connection();
+  if (connection_map_.contains(key) == false) {
+    std::cerr << "[DEBUG][F] no connection(" << connection->connection()<< ")" << std::endl;
+    return;
+  }
+  std::cerr << "[DEBUG][F] Erase connection(" << connection->connection()<< ")" << std::endl;
+  connection->CloseConnection();
+  connection_map_.erase(key);
 }
 
 }

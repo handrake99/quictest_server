@@ -27,6 +27,7 @@ public:
   ConnectionManager();
 
   void OnNewConnection(std::shared_ptr<network::QuicConnection>);
+  void OnCloseConnection(std::shared_ptr<network::QuicConnection>);
 
 private:
   std::unordered_map<HQUIC, std::shared_ptr<network::QuicConnection>> connection_map_;

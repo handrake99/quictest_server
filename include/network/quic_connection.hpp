@@ -26,11 +26,12 @@ struct SendContext {
   SendContext(std::string d) : data(std::move(d)) {}
 };
 
-class QuicConnection {
+class QuicConnection : public std::enable_shared_from_this<QuicConnection> {
 public:
   QuicConnection(HQUIC connection);
 
-  QUIC_STATUS InitConnection(const QUIC_API_TABLE* api,  std::shared_ptr<QuicConfigManager> config);
+  //QUIC_STATUS InitConnection(const QUIC_API_TABLE* api,  std::shared_ptr<QuicConfigManager> config);
+  QUIC_STATUS InitConnection(QuicServer* server);
   void CloseConnection();
 
   void SendJsonMessage(const std::string& content);

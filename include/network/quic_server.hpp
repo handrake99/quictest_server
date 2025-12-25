@@ -36,11 +36,7 @@ namespace network {
 // Args:
 //   connection: Newly accepted connection handle (HQUIC).
 //   context: User-provided context pointer (can be used to pass QuicServer*).
-#ifdef QUICFLOW_HAS_MSQUIC
 using ConnectionCallback = std::function<void(HQUIC connection, void* context)>;
-#else
-using ConnectionCallback = std::function<void(void* connection, void* context)>;
-#endif
 
 // RAII wrapper for QUIC server listener.
 // This class manages the lifecycle of a QUIC listener, including:

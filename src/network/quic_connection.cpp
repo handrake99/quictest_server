@@ -6,6 +6,7 @@
 
 #include <iostream>
 
+#include "manager/connection_manager.hpp"
 #include "network/quic_config_manager.hpp"
 #include "network/quic_server.hpp"
 
@@ -15,7 +16,14 @@ namespace network {
 QuicConnection::QuicConnection(HQUIC connection) {
   connection_ = connection;
 }
-QUIC_STATUS QuicConnection::InitConnection(const QUIC_API_TABLE* api,  std::shared_ptr<QuicConfigManager> config) {
+//QUIC_STATUS QuicConnection::InitConnection(const QUIC_API_TABLE* api,  std::shared_ptr<QuicConfigManager> config) {
+QUIC_STATUS QuicConnection::InitConnection(QuicServer* server) {
+  if (server == nullptr) {
+    return QUIC_STATUS_INTERNAL_ERROR;
+  }
+  server_ = server;
+  auto api = server_->api();
+  auto config = server_->config();
 
   if ( api == nullptr
     || config == nullptr
@@ -24,6 +32,8 @@ QUIC_STATUS QuicConnection::InitConnection(const QUIC_API_TABLE* api,  std::shar
   }
 
   api->SetCallbackHandler(connection_, (void*)ServerConnectionCallback, this);
+
+  std::cout << "[QuicConnection] Regist Handler and Context "  << &ServerConnectionCallback << ", " << this << std::endl;
 
   // 3. 설정(Configuration) 적용
   // 주의: configuration_ 핸들이 유효해야 함
@@ -117,18 +127,23 @@ QUIC_STATUS QUIC_API QuicConnection::ServerStreamCallback(HQUIC hStream, void* C
 
 
 QUIC_STATUS QUIC_API QuicConnection::ServerConnectionCallback(HQUIC connection, void* context, QUIC_CONNECTION_EVENT* event) {
-  QuicConnection* quicConnection = static_cast<QuicConnection*>(context);
+
+  std::cout << "[QuicConnection] ServerConnectionCallback Context "  << context << std::endl;
+  auto quicConnectionPtr = static_cast<QuicConnection*>(context);
+  auto quicConnection = quicConnectionPtr->shared_from_this();
+
 
   if (quicConnection == nullptr) {
     std::cerr << "[QuicServer] Connection is nullptr" << std::endl;
     return QUIC_STATUS_INTERNAL_ERROR;
   }
+
+  //auto quicConnection = std::make_shared<QuicConnection>(connectionPtr->connection());
   auto api = QuicServer::GetInstance().api();
 
   std::cout << "[Conn] ServerConnectionCallback Called (" << connection << "),(" << event->Type << ")"<< std::endl;
 
   switch (event->Type) {
-
     // [연결 성공] 핸드셰이크 완료
     case QUIC_CONNECTION_EVENT_CONNECTED:{
       std::cout << "[Conn] Client Connected!" << std::endl;
@@ -152,12 +167,8 @@ QUIC_STATUS QUIC_API QuicConnection::ServerConnectionCallback(HQUIC connection, 
     // [연결 종료]
     case QUIC_CONNECTION_EVENT_SHUTDOWN_COMPLETE: {
       std::cout << "[Conn] Closed." << std::endl;
-      api->ConnectionClose(connection);
+      manager::ConnectionManager::GetInstance().OnCloseConnection(quicConnection);
 
-      quicConnection->CloseConnection();
-
-      // 컨텍스트 삭제
-      //if (connCtx) delete connCtx;
       break;
     }
 
@@ -169,10 +180,10 @@ QUIC_STATUS QUIC_API QuicConnection::ServerConnectionCallback(HQUIC connection, 
       break;
     }
 
-    default: {
+    /*default: {
       std::cout << "[Conn] Connection Event Type!" << event->Type <<std::endl;
       break;
-    }
+    }*/
 
   }
   return QUIC_STATUS_SUCCESS;
