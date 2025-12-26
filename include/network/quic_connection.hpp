@@ -33,17 +33,23 @@ public:
   //QUIC_STATUS InitConnection(const QUIC_API_TABLE* api,  std::shared_ptr<QuicConfigManager> config);
   QUIC_STATUS InitConnection(QuicServer* server);
   void CloseConnection();
+  void OnChatStreamStarted(HQUIC hStream);
+  void OnChatStreamReceived(QUIC_STREAM_EVENT* event);
+  void OnChatStreamClosed();
 
-  void SendJsonMessage(const std::string& content);
+  void SendChatMessage(const std::string& content);
 
   static QUIC_STATUS ServerConnectionCallback(HQUIC connection, void* context, QUIC_CONNECTION_EVENT* Event);
-  static QUIC_STATUS ServerStreamCallback(HQUIC connection, void* context, QUIC_STREAM_EVENT* Event);
+  static QUIC_STATUS ServerChatCallback(HQUIC connection, void* context, QUIC_STREAM_EVENT* Event);
 
   HQUIC connection() { return connection_; }
 
 private:
+  void SendJsonMessage(HQUIC hStream, const std::string& content);
+
   QuicServer* server_;
   HQUIC connection_;
+  HQUIC stream_chat_;
 
   volatile int message_id_ = 0;
 };

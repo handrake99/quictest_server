@@ -199,7 +199,7 @@ QUIC_STATUS QUIC_API QuicServer::ServerListenerCallback(HQUIC listener,
       try {
         auto newConnection = std::make_shared<QuicConnection>(hConnection);
 
-        auto status = newConnection->InitConnection(server->api(), server->config());
+        auto status = newConnection->InitConnection(server);
         if (QUIC_FAILED(status)) {
           std::cerr << "[QuicServer] Failed to init connection: " << status << std::endl;
           return QUIC_STATUS_INTERNAL_ERROR;

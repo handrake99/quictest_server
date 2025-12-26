@@ -57,7 +57,19 @@ void QuicConnection::CloseConnection() {
 
   server_ = nullptr;
 }
-void QuicConnection::SendJsonMessage(const std::string& content) {
+void QuicConnection::SendChatMessage(const std::string& content) {
+  if (stream_chat_ == nullptr) {
+    std::cerr << "[QuicConnection] SendChatMessage called with nullptr" << std::endl;
+    return;
+  }
+
+  SendJsonMessage(stream_chat_, content);
+}
+void QuicConnection::SendJsonMessage(HQUIC hStream, const std::string& content) {
+  if (hStream == nullptr) {
+    std::cerr << "[QuicConnection] SendJsonMessage called with nullptr" << std::endl;
+    return;
+  }
   // 1. JSON 객체 생성 (C# Dictionary보다 더 직관적)
   json j;
   j["msg_id"] = message_id_;
@@ -82,56 +94,20 @@ void QuicConnection::SendJsonMessage(const std::string& content) {
   // 5. 스트림 열기 & 보내기
   HQUIC stream = nullptr;
   auto api = server_->config()->api();
-  if (QUIC_SUCCEEDED(api->StreamOpen(connection_, QUIC_STREAM_OPEN_FLAG_NONE, ServerStreamCallback, nullptr, &stream))) {
-    api->StreamStart(stream, QUIC_STREAM_START_FLAG_IMMEDIATE);
-
-    api->StreamSend(
-        stream,
-        &quicBuf,
-        1,
-        QUIC_SEND_FLAG_FIN, // 메시지 보내고 스트림 닫음 (단발성)
-        payload // <--- 이 포인터가 나중에 Callback으로 돌아옵니다.
-    );
-  } else {
-    delete payload; // 실패하면 즉시 해제
-  }
+  api->StreamSend(
+      stream,
+      &quicBuf,
+      1,
+      QUIC_SEND_FLAG_NONE, // 메시지 보내고 스트림 닫음 (단발성)
+      payload // <--- 이 포인터가 나중에 Callback으로 돌아옵니다.
+  );
 }
-
-QUIC_STATUS QUIC_API QuicConnection::ServerStreamCallback(HQUIC hStream, void* Context, QUIC_STREAM_EVENT* event) {
-  auto server = static_cast<QuicServer*>(Context);
-  if (server == nullptr) {
-    std::cerr << "[QuicServer] Server is nullptr" << std::endl;
-    return QUIC_STATUS_INTERNAL_ERROR;
-  }
-
-  auto api = server->api();
-
-  switch (event->Type) {
-    case QUIC_STREAM_EVENT_SEND_COMPLETE:
-      // ★ 핵심: 전송이 완료되었으므로 힙에 할당했던 JSON 문자열 해제
-      if (event->SEND_COMPLETE.ClientContext) {
-        auto payload = (SendContext*)event->SEND_COMPLETE.ClientContext;
-        delete payload; // 메모리 해제!
-        // printf("[Stream] JSON Sent & Memory Freed\n");
-      }
-      break;
-
-    case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
-      api->StreamClose(hStream);
-      break;
-
-    // ... 기타 에러 처리 ...
-  }
-  return QUIC_STATUS_SUCCESS;
-}
-
 
 QUIC_STATUS QUIC_API QuicConnection::ServerConnectionCallback(HQUIC connection, void* context, QUIC_CONNECTION_EVENT* event) {
 
   std::cout << "[QuicConnection] ServerConnectionCallback Context "  << context << std::endl;
   auto quicConnectionPtr = static_cast<QuicConnection*>(context);
   auto quicConnection = quicConnectionPtr->shared_from_this();
-
 
   if (quicConnection == nullptr) {
     std::cerr << "[QuicServer] Connection is nullptr" << std::endl;
@@ -147,20 +123,17 @@ QUIC_STATUS QUIC_API QuicConnection::ServerConnectionCallback(HQUIC connection, 
     // [연결 성공] 핸드셰이크 완료
     case QUIC_CONNECTION_EVENT_CONNECTED:{
       std::cout << "[Conn] Client Connected!" << std::endl;
-      // (테스트) 연결되자마자 환영 메시지 JSON 보내기
-        json welcome;
-        welcome["msg"] = "Welcome to Server";
-        welcome["server_time"] = 123456789;
-        quicConnection->SendJsonMessage("Welcome to Server");
+      //quicConnection->SendJsonMessage("Welcome to Server");
       break;
     }
     case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_TRANSPORT: {
       std::cout << "[Conn] Client Connection SHUTDOWN INITIATED BY TRANSPORT!" << std::endl;
       QUIC_STATUS innerStatus = event->SHUTDOWN_INITIATED_BY_TRANSPORT.Status;
+      QUIC_STATUS innerErrorCode = event->SHUTDOWN_INITIATED_BY_TRANSPORT.ErrorCode;
 
       // Status 코드를 찍어봐야 합니다.
       // 리눅스/맥에서는 0x..., 윈도우에서는 음수/양수 등으로 나옴
-      printf("[Conn] Transport Shutdown! Status: 0x%x\n", innerStatus);
+      std::cout << "[Conn] Transport Shutdown! Status: " << innerStatus << "," << innerErrorCode << std::endl;
       break;
     }
 
@@ -175,16 +148,87 @@ QUIC_STATUS QUIC_API QuicConnection::ServerConnectionCallback(HQUIC connection, 
     // [스트림 수신] 클라이언트가 먼저 스트림을 열어서 데이터를 보냈을 때
     case QUIC_CONNECTION_EVENT_PEER_STREAM_STARTED: {
       // 이 스트림을 처리할 콜백 지정
-      //api->SetCallbackHandler(event->PEER_STREAM_STARTED.Stream, (void*)ServerStreamCallback, connCtx);
+      quicConnection->OnChatStreamStarted(event->PEER_STREAM_STARTED.Stream);
       std::cout << "[Conn] Connection Event Pear Stream Started!" << std::endl;
       break;
     }
 
-    /*default: {
+    default: {
       std::cout << "[Conn] Connection Event Type!" << event->Type <<std::endl;
       break;
-    }*/
+    }
 
+  }
+  return QUIC_STATUS_SUCCESS;
+}
+void QuicConnection::OnChatStreamStarted(HQUIC hStream) {
+  if (hStream == nullptr) {
+    std::cerr << "[QuicConnection] Stream is nullptr" << std::endl;
+    return;
+  }
+  stream_chat_ = hStream;
+  auto api = server_->api();
+  if (api == nullptr) {
+    std::cerr << "[QuicServer] Server API is nullptr" << std::endl;
+    return ;
+  }
+
+  api->SetCallbackHandler(stream_chat_, (void*)ServerChatCallback, this);
+}
+
+void QuicConnection::OnChatStreamClosed() {
+  if (stream_chat_== nullptr) {
+    std::cerr << "[QuicConnection] Chat Stream is nullptr" << std::endl;
+    return;
+  }
+
+  auto api = server_->api();
+  if (api == nullptr) {
+    std::cerr << "[QuicServer] Server API is nullptr" << std::endl;
+    return ;
+  }
+
+  api->StreamClose(stream_chat_);
+  stream_chat_ = nullptr;
+}
+void QuicConnection::OnChatStreamReceived(QUIC_STREAM_EVENT* event) {
+
+  const QUIC_BUFFER* buffers = event->RECEIVE.Buffers;
+  uint32_t bufferCount = event->RECEIVE.BufferCount;
+
+  for (uint32_t i=0; i< bufferCount; i++) {
+    std::cout << "[QuicStream] Receive Buffer " << i << "!" << std::endl;
+  }
+}
+
+
+// static callback
+QUIC_STATUS QuicConnection::ServerChatCallback(HQUIC hStream, void* context, QUIC_STREAM_EVENT* event) {
+  auto quicConnectionPtr = static_cast<QuicConnection*>(context);
+  auto quicConnection = quicConnectionPtr->shared_from_this();
+
+  switch (event->Type) {
+    case QUIC_STREAM_EVENT_RECEIVE:
+      std::cout << "[QuicStream] Receive Event Type!" << std::endl;
+      quicConnection->OnChatStreamReceived(event);
+      break;
+    case QUIC_STREAM_EVENT_SEND_COMPLETE:
+      // ★ 핵심: 전송이 완료되었으므로 힙에 할당했던 JSON 문자열 해제
+      if (event->SEND_COMPLETE.ClientContext) {
+        auto payload = (SendContext*)event->SEND_COMPLETE.ClientContext;
+        delete payload; // 메모리 해제!
+        // printf("[Stream] JSON Sent & Memory Freed\n");
+      }
+      break;
+
+    case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
+      quicConnection->OnChatStreamClosed();
+      break;
+    default:
+      std::cout << "[QuicStream] Stream Event Type!" << event->Type << std::endl;
+      break;
+
+      // ... 기타 에러 처리 ...
   }
   return QUIC_STATUS_SUCCESS;
 }

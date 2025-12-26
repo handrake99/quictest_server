@@ -86,7 +86,8 @@ bool QuicConfigManager::InitializeConfig() {
 
   handle_config_ = nullptr;
   is_valid_ = false;
-  std::vector<std::string> alpn_protocols = {"h3", "webtransport"};
+  std::vector<std::string> alpn_protocols = {"h3", "quicflow"};
+  //std::vector<std::string> alpn_protocols = {"h3"};
   if (alpn_protocols.empty()) {
     error_message_ = "ALPN protocols list cannot be empty";
     return false;
@@ -142,7 +143,7 @@ bool QuicConfigManager::InitializeConfig() {
   // Load certificate from files.
   // Why: QUIC/TLS requires a certificate. We load the certificate and key
   //      from files in the certificate/ directory for production use.
-  const std::string cert_file = "certificate/server.crt";
+  const std::string cert_file = "certificate/server.cert";
   const std::string key_file = "certificate/server.key";
 
   auto cred_config = LoadCertificateFromFiles(cert_file, key_file);
