@@ -10,7 +10,6 @@
 #include <memory>
 #include <functional>
 
-
 namespace quicflow {
 
 namespace network {
@@ -21,13 +20,14 @@ class QuicConnection;
 namespace manager {
 #include "common/singleton.hpp"
 
-
 class ConnectionManager : public Common::Singleton<ConnectionManager> {
 public:
   ConnectionManager();
 
   void OnNewConnection(std::shared_ptr<network::QuicConnection>);
   void OnCloseConnection(std::shared_ptr<network::QuicConnection>);
+
+  void OnReceiveChatMessage(std::shared_ptr<network::QuicConnection>, std::string& strMessage);
 
 private:
   std::unordered_map<HQUIC, std::shared_ptr<network::QuicConnection>> connection_map_;

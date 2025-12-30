@@ -7,7 +7,9 @@
 #include <iostream>
 
 #include "manager/connection_manager.hpp"
+#include "network/quic_buffer_reader.hpp"
 #include "network/quic_config_manager.hpp"
+#include "network/quic_protocol.hpp"
 #include "network/quic_server.hpp"
 
 namespace quicflow {
@@ -57,50 +59,97 @@ void QuicConnection::CloseConnection() {
 
   server_ = nullptr;
 }
-void QuicConnection::SendChatMessage(const std::string& content) {
+void QuicConnection::SendChatMessage(const std::string& message) {
   if (stream_chat_ == nullptr) {
     std::cerr << "[QuicConnection] SendChatMessage called with nullptr" << std::endl;
     return;
   }
 
-  SendJsonMessage(stream_chat_, content);
-}
-void QuicConnection::SendJsonMessage(HQUIC hStream, const std::string& content) {
-  if (hStream == nullptr) {
-    std::cerr << "[QuicConnection] SendJsonMessage called with nullptr" << std::endl;
-    return;
-  }
   // 1. JSON 객체 생성 (C# Dictionary보다 더 직관적)
-  json j;
-  j["msg_id"] = message_id_;
-  j["content"] = content;
-  j["timestamp"] = std::time(nullptr);
-  j["extra_info"] = { {"hp", 100}, {"mp", 50} }; // 중첩 객체도 가능
+  ChatProtocol jsonData;
+  jsonData.Type = "Chat";
+  jsonData.MessageId = message_id_;
+  jsonData.UserID = "User1";
+  jsonData.Message = message;
+  jsonData.Timestamp = std::time(nullptr);
 
   message_id_++;
 
+  json j = jsonData;
+
   // 2. 직렬화 (std::string으로 변환)
   std::string serializedStr = j.dump();
+  SendJsonMessage(stream_chat_, serializedStr);
+  //SendMessageCombined(stream_chat_);
+}
 
-  // 3. [중요] 힙에 할당 (비동기 전송 생명주기 보장용)
-  // 이 객체는 위의 Callback에서 delete 됩니다.
-  SendContext* payload = new SendContext(serializedStr);
+// 메시지를 Little Endian 헤더와 합쳐서 전송하는 함수
+void QuicConnection::SendJsonMessage( const HQUIC hStream, const std::string& jsonMessage)
+{
+  uint32_t bodyLength = (uint32_t)jsonMessage.length();
+  uint32_t totalLength = 4 + bodyLength;
 
-  // 4. QUIC 버퍼 세팅
-  QUIC_BUFFER quicBuf;
-  quicBuf.Length = (uint32_t)payload->data.length();
-  quicBuf.Buffer = (uint8_t*)payload->data.c_str();
+  // 1. 단 하나의 버퍼만 할당 (Header + Body)
+  // SendBufferContext를 힙에 생성하여 전송 완료 시점까지 살려둡니다.
+  auto* SendCtx = new SendBufferContext(totalLength);
+  uint8_t* BufferPtr = SendCtx->RawBuffer;
 
-  // 5. 스트림 열기 & 보내기
-  HQUIC stream = nullptr;
-  auto api = server_->config()->api();
-  api->StreamSend(
-      stream,
-      &quicBuf,
+  // 2. [Little Endian] 헤더 작성 (4 Bytes)
+  // CPU 아키텍처 상관없이 강제로 리틀 엔디안으로 박아넣음
+  BufferPtr[0] = (uint8_t)(bodyLength & 0xFF);
+  BufferPtr[1] = (uint8_t)((bodyLength >> 8) & 0xFF);
+  BufferPtr[2] = (uint8_t)((bodyLength >> 16) & 0xFF);
+  BufferPtr[3] = (uint8_t)((bodyLength >> 24) & 0xFF);
+
+  // 3. 본문 복사 (Offset 4부터 시작)
+  if (bodyLength > 0) {
+    memcpy(BufferPtr + 4, jsonMessage.c_str(), bodyLength);
+  }
+
+  // 4. QUIC_BUFFER 구조체 세팅
+  QUIC_BUFFER* QuicBuf = new QUIC_BUFFER();
+//#ifdef _WIN32
+  // Windows 방식
+  QuicBuf->Length = totalLength;
+  QuicBuf->Buffer = SendCtx->RawBuffer;
+/*#else
+  // Mac/Linux 방식 (iovec)
+  // iovec 구조체로 캐스팅해서 넣어야 안전합니다.
+  struct iovec* vec = (struct iovec*)&QuicBuf;
+  vec->iov_base = SendCtx->RawBuffer; // 포인터가 먼저!
+  vec->iov_len = totalLength;         // 길이가 나중!
+#endif*/
+
+  auto api = server_->config()->api(); // 실제 데이터가 들어있는 힙 메모리 주소
+
+  printf("[DEBUG] Real Buffer Address (Heap): %p\n", SendCtx->RawBuffer);
+  printf("[DEBUG] Intended Length: %u\n", totalLength);
+
+  printf("Size Check: QUIC_BUFFER=%zu, iovec=%zu\n", sizeof(QUIC_BUFFER), sizeof(struct iovec));
+
+  /*void** rawPtr = (void**)&RealVec;
+  // QUIC_BUFFER 구조체 내부의 첫 8바이트와 두 번째 8바이트 확인
+  printf("[DEBUG] Struct Slot 0 (First 8 bytes):  0x%llX\n", rawPtr[0]);
+  printf("[DEBUG] Struct Slot 1 (Second 8 bytes): 0x%llX\n", rawPtr[1]);*/
+
+  // 5. 전송 (비동기)
+  // ClientSendContext 파라미터(마지막 인자)에 우리가 만든 SendCtx를 넘깁니다.
+  // 이 포인터는 SEND_COMPLETE 이벤트에서 다시 돌려받아 delete 할 것입니다.
+  QUIC_STATUS Status = api->StreamSend(
+      hStream,
+      QuicBuf,
+      //(QUIC_BUFFER*)&RealVec,
       1,
-      QUIC_SEND_FLAG_NONE, // 메시지 보내고 스트림 닫음 (단발성)
-      payload // <--- 이 포인터가 나중에 Callback으로 돌아옵니다.
+      QUIC_SEND_FLAG_NONE,
+      SendCtx // ★ 중요: 콜백으로 넘겨줄 문맥 포인터
   );
+
+  if (QUIC_FAILED(Status)) {
+    printf("[Error] StreamSend failed: 0x%x\n", Status);
+    delete SendCtx; // 전송 실패 시 즉시 해제
+  }
+
+  std::cout << "[QuicConnection] SendJsonMessage Success " << totalLength << std::endl;
 }
 
 QUIC_STATUS QUIC_API QuicConnection::ServerConnectionCallback(HQUIC connection, void* context, QUIC_CONNECTION_EVENT* event) {
@@ -193,12 +242,17 @@ void QuicConnection::OnChatStreamClosed() {
 }
 void QuicConnection::OnChatStreamReceived(QUIC_STREAM_EVENT* event) {
 
-  const QUIC_BUFFER* buffers = event->RECEIVE.Buffers;
+  const QUIC_BUFFER* buffer = event->RECEIVE.Buffers;
   uint32_t bufferCount = event->RECEIVE.BufferCount;
 
-  for (uint32_t i=0; i< bufferCount; i++) {
-    std::cout << "[QuicStream] Receive Buffer " << i << "!" << std::endl;
+  std::string outputString;
+
+  if (QuicBufferReader::TryParseStringMessage(buffer, bufferCount, outputString) == false) {
+    std::cerr << "[QuicStream] Receive Buffer Error" << bufferCount << "!" << std::endl;
+    return;
   }
+
+  manager::ConnectionManager::GetInstance().OnReceiveChatMessage(shared_from_this(), outputString);
 }
 
 
@@ -215,10 +269,14 @@ QUIC_STATUS QuicConnection::ServerChatCallback(HQUIC hStream, void* context, QUI
     case QUIC_STREAM_EVENT_SEND_COMPLETE:
       // ★ 핵심: 전송이 완료되었으므로 힙에 할당했던 JSON 문자열 해제
       if (event->SEND_COMPLETE.ClientContext) {
-        auto payload = (SendContext*)event->SEND_COMPLETE.ClientContext;
+        auto payload = (SendBufferContext*)event->SEND_COMPLETE.ClientContext;
+
+        printf("[DEBUG] Real Buffer Address (Heap): %p\n", payload->RawBuffer);
+        printf("[DEBUG] Intended Length: %u\n", payload->TotalLength);
+
         delete payload; // 메모리 해제!
-        // printf("[Stream] JSON Sent & Memory Freed\n");
       }
+      std::cout << "[QuicStream] STREAM Event SEND COMPLETE!" << std::endl;
       break;
 
     case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:

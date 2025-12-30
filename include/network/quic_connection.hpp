@@ -19,11 +19,19 @@ class QuicServer;
 class QuicApi;
 class QuicConfigManager;
 
-// 전송이 끝날 때까지 메모리를 살려두기 위한 컨텍스트
-struct SendContext {
-  std::string data; // 실제 JSON 문자열
+// [핵심] 전송이 끝날 때까지 메모리를 유지하기 위한 구조체
+struct SendBufferContext {
+  uint8_t* RawBuffer;
+  uint32_t TotalLength;
 
-  SendContext(std::string d) : data(std::move(d)) {}
+  SendBufferContext(uint32_t size) {
+    RawBuffer = new uint8_t[size];
+    TotalLength = size;
+  }
+
+  ~SendBufferContext() {
+    delete[] RawBuffer;
+  }
 };
 
 class QuicConnection : public std::enable_shared_from_this<QuicConnection> {
@@ -44,14 +52,17 @@ public:
 
   HQUIC connection() { return connection_; }
 
+
 private:
-  void SendJsonMessage(HQUIC hStream, const std::string& content);
+  //void SendJsonMessage(HQUIC hStream, const std::string& content);
+  void SendJsonMessage(HQUIC hStream, const std::string& message);
+  //void SendMessageCombined(const HQUIC hStream);
 
   QuicServer* server_;
   HQUIC connection_;
   HQUIC stream_chat_;
 
-  volatile int message_id_ = 0;
+  volatile uint32_t message_id_ = 0;
 };
 };
 }
