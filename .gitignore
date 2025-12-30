@@ -1,0 +1,88 @@
+-------------------------------------------------------------
+# 3. QUIC & Network Specific (VERY IMPORTANT)
+# ----------------------------------------------------------------------------
+# QUIC은 TLS 1.3이 필수이므로 인증서/키 파일이 생성됩니다.
+# 이 파일들은 절대 저장소에 올리면 안 됩니다.
+*.pem
+*.key
+*.crt
+*.csr
+*.pfx
+*.p12
+
+# Wireshark 덤프 파일 (패킷 분석용)
+*.pcap
+*.pcapng
+
+# Logs
+*.log
+
+# ----------------------------------------------------------------------------
+# 4. IDE & OS Settings (Mac + Windows)
+# ----------------------------------------------------------------------------
+# macOS
+.DS_Store
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Visual Studio Code
+.vscode/
+
+# CLion (JetBrains)
+.idea/
+
+# ---------------------------------------------------------------------------# ----------------------------------------------------------------------------
+# 1. Build Artifacts & Binary (Compiled files)
+# ----------------------------------------------------------------------------
+# Object files
+*.o
+*.obj
+
+# Libraries
+*.lib
+*.a
+*.dll
+*.dylib
+*.so
+
+# Executables
+*.exe
+*.out
+*.app
+
+# Debug symbols
+*.pdb
+*.idb
+*.dSYM/
+
+# ----------------------------------------------------------------------------
+# 2. Build Directories (CMake, Visual Studio, etc.)
+# ----------------------------------------------------------------------------
+[Bb]uild/
+[Bb]in/
+[Oo]ut/
+[Dd]ist/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+
+# CMake specific
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+*.cmake
+install_manifest.txt
+
+# ----------------
+# 5. Dependency Management (vcpkg, conan, etc.)
+# ----------------------------------------------------------------------------
+vcpkg_installed/
+conan.lock
