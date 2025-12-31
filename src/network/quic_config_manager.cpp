@@ -113,10 +113,12 @@ bool QuicConfigManager::InitializeConfig() {
   //      (e.g., connection migration, idle timeout) can be added later
   //      via additional setter methods if needed.
   QUIC_SETTINGS settings = {};
-  settings.IdleTimeoutMs = 60000;  // 60 seconds default
+  settings.IdleTimeoutMs = 60 * 60 * 1000;  // 1 hour
   settings.IsSet.IdleTimeoutMs = TRUE;
   settings.PeerBidiStreamCount = 100;  // Allow bidirectional streams
   settings.IsSet.PeerBidiStreamCount = TRUE;
+  settings.KeepAliveIntervalMs = 30 * 1000; // 30초
+  settings.IsSet.KeepAliveIntervalMs = TRUE;
 
   // 2. configuration open
   // Note: ConfigurationOpen requires a registration handle.
