@@ -1,0 +1,26 @@
+{
+	"name": "QuicFlow C++ Dev",
+	"build": {
+		// .devcontainer 폴더 기준으로 상위(..)에 있는 Dockerfile 지정
+		"dockerfile": "../Dockerfile",
+		"context": ".."
+	},
+	
+	// 컨테이너가 뜰 때 자동으로 설치할 VS Code 확장 프로그램들
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-vscode.cpptools",       // C++ 인텔리센스 (필수)
+				"ms-vscode.cmake-tools",    // CMake 도구 (필수)
+				"tws.cmake",                // CMake 언어 지원
+				"vadimcn.vscode-lldb"       // 디버거
+			]
+		}
+	},
+
+	// 컨테이너 생성 후 실행할 명령 (필요 시 주석 해제)
+	// "postCreateCommand": "mkdir -p build && cd build && cmake ..",
+
+	// 루트 유저로 실행 (권한 문제 방지용, 추후 보안 강화 가능)
+	"remoteUser": "root"
+}

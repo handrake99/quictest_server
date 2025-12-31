@@ -118,6 +118,11 @@ add_executable(quicflow_echo_server
         src/network/quic_connection.cpp
         include/manager/connection_manager.hpp
         src/manager/connection_manager.cpp
+        include/manager/chat_manager.hpp
+        src/manager/chat_manager.cpp
+        include/network/quic_buffer_reader.hpp
+        src/network/quic_buffer_reader.cpp
+        include/network/quic_protocol.hpp
 )
 
 target_include_directories(quicflow_echo_server
