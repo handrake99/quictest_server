@@ -109,8 +109,7 @@ find_package(nlohmann_json 3.2.0 REQUIRED)
 
 add_executable(quicflow_echo_server
     src/main.cpp
-    src/network/quic_api.cpp
-    src/network/quic_config_manager.cpp
+        src/network/quic_config_manager.cpp
     src/network/quic_server.cpp
     src/network/quic_certificate.cpp
         include/common/singleton.hpp
@@ -118,11 +117,13 @@ add_executable(quicflow_echo_server
         src/network/quic_connection.cpp
         include/manager/connection_manager.hpp
         src/manager/connection_manager.cpp
-        include/manager/chat_manager.hpp
-        src/manager/chat_manager.cpp
         include/network/quic_buffer_reader.hpp
         src/network/quic_buffer_reader.cpp
         include/network/quic_protocol.hpp
+        include/core/serialized_object.hpp
+        src/core/serialized_object.cpp
+        include/core/serialized_task.hpp
+        src/core/serialized_task.cpp
 )
 
 target_include_directories(quicflow_echo_server

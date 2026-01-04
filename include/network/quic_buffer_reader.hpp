@@ -8,13 +8,15 @@
 #include <msquic.h>
 #include <string>
 #include <vector>
-#include <cstring>
 #include <iostream>
 
 // 보안을 위한 최대 허용 메시지 크기 (예: 1MB)
 // 해커가 40억 바이트(4GB)라고 헤더를 조작해 보내면 메모리가 터지므로 제한 필수
 const uint32_t MAX_MESSAGE_SIZE = 1024 * 1024;
 
+// 통신을 위한 Buffer Reader
+// Header(Length) : 4byte
+// Body : Length byte
 class QuicBufferReader {
 public:
   static bool TryParseStringMessage(

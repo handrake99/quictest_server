@@ -5,7 +5,6 @@
 #include <iostream>
 #include <sstream>
 
-#include "network/quic_api.hpp"
 #include "network/quic_certificate.hpp"
 
 namespace quicflow {

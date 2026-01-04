@@ -156,7 +156,7 @@ QUIC_STATUS QUIC_API QuicConnection::ServerConnectionCallback(HQUIC connection, 
 
   std::cout << "[QuicConnection] ServerConnectionCallback Context "  << context << std::endl;
   auto quicConnectionPtr = static_cast<QuicConnection*>(context);
-  auto quicConnection = quicConnectionPtr->shared_from_this();
+  auto quicConnection = std::static_pointer_cast<QuicConnection>(quicConnectionPtr->shared_from_this());
 
   if (quicConnection == nullptr) {
     std::cerr << "[QuicServer] Connection is nullptr" << std::endl;
@@ -210,6 +210,13 @@ QUIC_STATUS QUIC_API QuicConnection::ServerConnectionCallback(HQUIC connection, 
   }
   return QUIC_STATUS_SUCCESS;
 }
+
+void QuicConnection::OnChatStreamStartedAsync(HQUIC hStream) {
+  auto thisObject = shared_from_this();
+
+  thisObject->SerializeAsync(&QuicConnection::OnChatStreamStarted, hStream);
+}
+
 void QuicConnection::OnChatStreamStarted(HQUIC hStream) {
   if (hStream == nullptr) {
     std::cerr << "[QuicConnection] Stream is nullptr" << std::endl;
@@ -252,14 +259,14 @@ void QuicConnection::OnChatStreamReceived(QUIC_STREAM_EVENT* event) {
     return;
   }
 
-  manager::ConnectionManager::GetInstance().OnReceiveChatMessage(shared_from_this(), outputString);
+  manager::ConnectionManager::GetInstance().OnReceiveChatMessage(std::static_pointer_cast<QuicConnection>(shared_from_this()), outputString);
 }
 
 
 // static callback
 QUIC_STATUS QuicConnection::ServerChatCallback(HQUIC hStream, void* context, QUIC_STREAM_EVENT* event) {
   auto quicConnectionPtr = static_cast<QuicConnection*>(context);
-  auto quicConnection = quicConnectionPtr->shared_from_this();
+  auto quicConnection = std::static_pointer_cast<QuicConnection>(quicConnectionPtr->shared_from_this());
 
   switch (event->Type) {
     case QUIC_STREAM_EVENT_RECEIVE:

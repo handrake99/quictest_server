@@ -6,7 +6,6 @@
 #define QUICFLOWCPP_QUIC_PROTOCOL_HPP
 
 #include <string>
-#include <vector>
 #include <nlohmann/json.hpp> // nlohmann/json 헤더 포함
 
 using json = nlohmann::json;

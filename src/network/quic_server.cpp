@@ -4,7 +4,6 @@
 #include <iostream>
 
 #include "manager/connection_manager.hpp"
-#include "network/quic_api.hpp"
 #include "network/quic_config_manager.hpp"
 #include "network/quic_connection.hpp"
 

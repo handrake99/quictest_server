@@ -32,14 +32,9 @@ namespace network {
 //
 // Note: This is a simplified implementation for testing. Production code should
 //       load certificates from files or certificate stores.
-#ifdef QUICFLOW_HAS_MSQUIC
 QUIC_CREDENTIAL_CONFIG CreateSelfSignedCertificate(
     const std::string& common_name = "localhost",
     int valid_days = 365);
-#else
-void* CreateSelfSignedCertificate(const std::string& /*common_name*/ = "localhost",
-                                  int /*valid_days*/ = 365);
-#endif
 
 // Loads a certificate from PEM files.
 // Why: 프로덕션 환경에서는 파일 시스템에 저장된 인증서를 로드해야 합니다.
@@ -54,14 +49,9 @@ void* CreateSelfSignedCertificate(const std::string& /*common_name*/ = "localhos
 //
 // Note: This is a placeholder for future implementation. MsQuic on different
 //       platforms may require different certificate loading mechanisms.
-#ifdef QUICFLOW_HAS_MSQUIC
 QUIC_CREDENTIAL_CONFIG LoadCertificateFromFiles(
     const std::string& cert_file,
     const std::string& key_file);
-#else
-void* LoadCertificateFromFiles(const std::string& /*cert_file*/,
-                                const std::string& /*key_file*/);
-#endif
 
 }  // namespace network
 }  // namespace quicflow

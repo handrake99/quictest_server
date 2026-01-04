@@ -16,7 +16,6 @@
 #include <iostream>
 #include <thread>
 
-#include "network/quic_api.hpp"
 #include "network/quic_certificate.hpp"
 #include "network/quic_config_manager.hpp"
 #include "network/quic_connection.hpp"

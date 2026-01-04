@@ -84,7 +84,6 @@ class QuicConfigManager {
   //   - Non-null pointer to QUIC_CONFIGURATION if valid.
   //   - nullptr if configuration is invalid (should not happen if
   //     is_valid() check is performed).
-#ifdef QUICFLOW_HAS_MSQUIC
   HQUIC configuration() const noexcept;
   // Returns the registration handle used by this configuration.
   // Why: ListenerOpen requires a registration handle, not a configuration handle.
@@ -93,12 +92,6 @@ class QuicConfigManager {
   // Returns the ALPN buffers used by this configuration.
   // Why: ListenerStart requires the same ALPN buffers as ConfigurationOpen.
   const std::vector<QUIC_BUFFER>& alpn_buffers() const noexcept;
-#else
-  const void* configuration() const noexcept;
-  const void* registration() const noexcept;
-  const void * api() const noexcept;
-  const std::vector<void*>& alpn_buffers() const noexcept;
-#endif
 
   // Returns a human-readable error message if initialization failed.
   // Why: Diagnostic information helps developers understand why
@@ -122,13 +115,7 @@ class QuicConfigManager {
   // Returns:
   //   - true if credential was set successfully.
   //   - false if configuration is invalid or credential setting failed.
-#ifdef QUICFLOW_HAS_MSQUIC
   bool set_credential(const QUIC_CREDENTIAL_CONFIG& credential_config);
-#else
-  bool set_credential(const void* /*credential_config*/) {
-    return false;
-  }
-#endif
 
  private:
   // Helper to initialize ALPN buffers from string vector.
@@ -142,19 +129,11 @@ class QuicConfigManager {
   //      DRY principle: extract to a single method.
   void Cleanup() noexcept;
 
-#ifdef QUICFLOW_HAS_MSQUIC
   const QUIC_API_TABLE* api_;
   HQUIC handle_registration_;  // QUIC_REGISTRATION is an alias for HQUIC
   HQUIC handle_config_;  // QUIC_CONFIGURATION is an alias for HQUIC
   std::vector<QUIC_BUFFER> alpn_buffers_;
   std::vector<std::vector<uint8_t>> alpn_storage_;  // Owns ALPN string data
-#else
-  const void* api_;
-  void* configuration_;
-  // Dummy vectors to maintain same class layout when MsQuic is unavailable
-  std::vector<void*> alpn_buffers_;
-  std::vector<std::vector<uint8_t>> alpn_storage_;
-#endif
 
   bool is_valid_;
   std::string error_message_;

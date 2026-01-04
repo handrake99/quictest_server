@@ -5,19 +5,27 @@
 #ifndef QUICFLOWCPP_QUIC_CONNECTION_HPP
 #define QUICFLOWCPP_QUIC_CONNECTION_HPP
 
-#include <nlohmann/json.hpp>
 #include <functional>
 #include <memory>
+#include <nlohmann/json.hpp>
+
+#include "core/serialized_task.hpp"
 extern "C" {
 #include <msquic.h>
 }
 using json = nlohmann::json;
 
 namespace quicflow {
+
 namespace network {
+
+using namespace quicflow::core;
+
 class QuicServer;
 class QuicApi;
 class QuicConfigManager;
+//class SerializedObject;
+#include "core/serialized_object.hpp"
 
 // [핵심] 전송이 끝날 때까지 메모리를 유지하기 위한 구조체
 struct SendBufferContext {
@@ -34,13 +42,18 @@ struct SendBufferContext {
   }
 };
 
-class QuicConnection : public std::enable_shared_from_this<QuicConnection> {
+// 1 유저 1개의 Connection 객체
+//class QuicConnection : public std::enable_shared_from_this<QuicConnection> {
+class QuicConnection : public SerializedObject {
 public:
   QuicConnection(HQUIC connection);
 
   //QUIC_STATUS InitConnection(const QUIC_API_TABLE* api,  std::shared_ptr<QuicConfigManager> config);
   QUIC_STATUS InitConnection(QuicServer* server);
   void CloseConnection();
+
+  void OnChatStreamStartedAsync(HQUIC hStream);
+
   void OnChatStreamStarted(HQUIC hStream);
   void OnChatStreamReceived(QUIC_STREAM_EVENT* event);
   void OnChatStreamClosed();
@@ -54,9 +67,7 @@ public:
 
 
 private:
-  //void SendJsonMessage(HQUIC hStream, const std::string& content);
   void SendJsonMessage(HQUIC hStream, const std::string& message);
-  //void SendMessageCombined(const HQUIC hStream);
 
   QuicServer* server_;
   HQUIC connection_;
