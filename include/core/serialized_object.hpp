@@ -41,6 +41,8 @@ private:
   bool isDestory_;
 
 };
+
+
 }
 }
 #endif  // QUICFLOWCPP_SERIALIZED_OBJECT_HPP

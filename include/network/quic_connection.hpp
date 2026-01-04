@@ -9,6 +9,7 @@
 #include <memory>
 #include <nlohmann/json.hpp>
 
+#include "core/serialized_predefined.hpp"
 #include "core/serialized_task.hpp"
 extern "C" {
 #include <msquic.h>
@@ -52,13 +53,10 @@ public:
   QUIC_STATUS InitConnection(QuicServer* server);
   void CloseConnection();
 
-  void OnChatStreamStartedAsync(HQUIC hStream);
-
-  void OnChatStreamStarted(HQUIC hStream);
-  void OnChatStreamReceived(QUIC_STREAM_EVENT* event);
-  void OnChatStreamClosed();
-
-  void SendChatMessage(const std::string& content);
+  DECLARE_ASYNC_FUNCTION(OnChatStreamStarted, HQUIC hStream)
+  DECLARE_ASYNC_FUNCTION(OnChatStreamReceived, QUIC_STREAM_EVENT* event)
+  DECLARE_ASYNC_FUNCTION(OnChatStreamClosed)
+  DECLARE_ASYNC_FUNCTION(SendChatMessage, const std::string& content)
 
   static QUIC_STATUS ServerConnectionCallback(HQUIC connection, void* context, QUIC_CONNECTION_EVENT* Event);
   static QUIC_STATUS ServerChatCallback(HQUIC connection, void* context, QUIC_STREAM_EVENT* Event);

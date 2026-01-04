@@ -19,7 +19,7 @@ ConnectionManager::ConnectionManager() {
 
 // 새로운 connection 이 들어왔을때 처리
 void ConnectionManager::OnNewConnection(std::shared_ptr<QuicConnection> connection) {
-  std::clog << "[DEBUG][F] OnNewConnection Called (" << connection->connection() << ")" << std::endl;
+  std::cout << "[ConnectionManager] OnNewConnection Called (" << connection->connection() << ")" << std::endl;
   auto key = connection->connection();
 
   if (connection_map_.contains(key) == true) {
@@ -71,7 +71,7 @@ void ConnectionManager::OnReceiveChatMessage(std::shared_ptr<network::QuicConnec
 
     for (auto curIter = connection_map_.begin(); curIter != connection_map_.end(); ++curIter) {
       auto curConnection = curIter->second;
-      curConnection->SendChatMessage(parsedData.Message);
+      curConnection->SendChatMessageAsync(parsedData.Message);
     }
   } catch (json::parse_error& e) {
     // JSON 형식이 깨져서 왔을 때

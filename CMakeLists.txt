@@ -124,6 +124,7 @@ add_executable(quicflow_echo_server
         src/core/serialized_object.cpp
         include/core/serialized_task.hpp
         src/core/serialized_task.cpp
+        include/core/serialized_predefined.hpp
 )
 
 target_include_directories(quicflow_echo_server

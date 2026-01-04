@@ -181,7 +181,7 @@ QUIC_STATUS QUIC_API QuicServer::ServerListenerCallback(HQUIC listener,
       //      The connection handle is then passed to the user callback.
       HQUIC hConnection= event->NEW_CONNECTION.Connection;
 
-      std::cout << "QUIC_LISTENER_EVENT_NEW_CONNECTION called" << std::endl;
+      std::cout << "[QuicServer] QUIC_LISTENER_EVENT_NEW_CONNECTION called" << std::endl;
 
       // Accept the connection with our configuration.
       QUIC_STATUS status = api->ConnectionSetConfiguration(hConnection, config->configuration());
