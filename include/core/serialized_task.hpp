@@ -7,10 +7,12 @@
 #include <memory>
 #include <thread>
 
+#include "common/logger.hpp"
 #include "serialized_object.hpp"
 
 namespace quicflow {
 namespace core {
+using namespace common;
 using Task = std::function<void()>;
 class SerializedObject;
 
@@ -19,6 +21,7 @@ public:
   SerializedTask(std::shared_ptr<SerializedObject> thisObject, Task task) {
     thisObject_ = thisObject;
     func_ = task;
+    Logger::Log("SerializedTask Created");
   }
 
   void Process() {

@@ -2,8 +2,6 @@
 // Created by 최진성 on 25. 12. 19..
 //
 
-#include <memory>
-#include <mutex>
 
 namespace Common {
   template <typename T>

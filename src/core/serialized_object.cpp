@@ -17,15 +17,17 @@ void SerializedObject::Serialize(std::shared_ptr<SerializedTask> newTask) {
   long count = 0;
   if (count_.compare_exchange_strong(count, 1)) {
     newTask->Process();
+    Logger::Log("Serialized Object Procesed");
 
-    if (count_.fetch_add(1) > 0) {
+    if (count_.fetch_sub(1) > 1) { // 감소시키기 전값이 리턴됨
       // run
       RunQueue();
     }
     return;
   }else {
     count = Enqueue(newTask);
-    if (count == 1) {
+    Logger::Log("Serialized Object Enqueued");
+    if (count == 0) {
       //run
       RunQueue();
     }
@@ -51,12 +53,14 @@ void SerializedObject::RunQueue() {
     }
 
     curTask = Dequeue();
+    Logger::Log("Serialized Object Dequeue");
     if (curTask == nullptr) {
       //error
       return;
     }
     curTask->Process();
-  }while (count_.fetch_sub(1) > 0);
+    Logger::Log("Serialized Object Processed in RunQueue");
+  }while (count_.fetch_sub(1) > 1);
 }
 long SerializedObject::Enqueue(std::shared_ptr<SerializedTask> task) {
   queue_.enqueue(task);

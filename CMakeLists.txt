@@ -125,6 +125,8 @@ add_executable(quicflow_echo_server
         include/core/serialized_task.hpp
         src/core/serialized_task.cpp
         include/core/serialized_predefined.hpp
+        include/common/logger.hpp
+        src/common/logger.cpp
 )
 
 target_include_directories(quicflow_echo_server
@@ -170,4 +172,5 @@ endif()
 #       quicflow_chat (session management, lock-free queues)
     #     and link them into this executable without changing the Docker UX.
 
-
+# C++ Debug 모드 플래그에 -D_DEBUG 추가
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_DEBUG")
